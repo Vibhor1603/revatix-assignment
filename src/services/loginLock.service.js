@@ -3,6 +3,7 @@
 const { randomUUID } = require('crypto');
 const { query } = require('../db/query');
 const { AppError } = require('../utils/AppError');
+const { logger } = require('../utils/logger');
 
 function lockSecondsForFailCount(failCount) {
   if (failCount >= 10) return 60 * 60;
@@ -31,6 +32,15 @@ async function assertNotLocked(ipAddress, deviceFingerprint) {
 
   const row = rows[0];
   if (row.locked_until && new Date(row.locked_until) > new Date()) {
+    logger.warn(
+      {
+        ipAddress,
+        deviceFingerprint,
+        failCount: row.fail_count,
+        lockedUntil: row.locked_until,
+      },
+      'Login blocked by progressive lockout',
+    );
     throw new AppError(formatLockMessage(row.locked_until), 429, 'Too Many Requests');
   }
 }
@@ -67,6 +77,11 @@ async function recordFailedLogin(ipAddress, deviceFingerprint, email) {
       [randomUUID(), ipAddress, deviceFingerprint, email || null, nextCount, lockedUntil],
     );
   }
+
+  logger.warn(
+    { ipAddress, deviceFingerprint, email, failCount: nextCount, lockedUntil },
+    'Recorded failed login attempt',
+  );
 
   if (lockedUntil) {
     throw new AppError(formatLockMessage(lockedUntil), 429, 'Too Many Requests');

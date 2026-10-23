@@ -8,6 +8,7 @@ const { getPage, getOffset, listResponse } = require('../utils/pagination');
 const { TASK_STATUS_RANK } = require('../constants/statuses');
 const { ROLES } = require('../constants/roles');
 const { getTicketById } = require('./tickets.service');
+const { logger } = require('../utils/logger');
 
 function mapTask(row) {
   return {
@@ -225,6 +226,16 @@ async function assignTask(actorUserId, id, data) {
     );
 
     if (!shifts.length) {
+      logger.warn(
+        {
+          taskId: id,
+          technicianId: data.technicianId,
+          scheduledStart: data.scheduledStart,
+          scheduledEnd: data.scheduledEnd,
+          actorUserId,
+        },
+        'Assign rejected: outside shift window',
+      );
       throw new AppError(
         'Assignment is outside the technician shift window',
         400,
@@ -248,6 +259,15 @@ async function assignTask(actorUserId, id, data) {
     );
 
     if (overlaps.length) {
+      logger.warn(
+        {
+          taskId: id,
+          technicianId: data.technicianId,
+          overlapTaskId: overlaps[0].id,
+          actorUserId,
+        },
+        'Assign rejected: schedule overlap',
+      );
       throw new AppError(
         `Technician has overlapping dispatch from ${overlaps[0].scheduled_start} to ${overlaps[0].scheduled_end}`,
         400,
@@ -285,6 +305,17 @@ async function assignTask(actorUserId, id, data) {
         scheduledEnd: data.scheduledEnd,
       },
     });
+
+    logger.info(
+      {
+        taskId: id,
+        action,
+        technicianId: data.technicianId,
+        previousTech,
+        actorUserId,
+      },
+      'Task assignment saved',
+    );
 
     const updatedRows = await tx.query(
       `SELECT t.*, u.name AS technician_name

@@ -2,9 +2,25 @@
 
 const rateLimit = require('express-rate-limit');
 const { getClientIp, getDeviceFingerprint } = require('../utils/deviceFingerprint');
+const { logger } = require('../utils/logger');
 
 function authKeyGenerator(req) {
   return `${getClientIp(req)}:${getDeviceFingerprint(req)}`;
+}
+
+function rateLimitHandler(scope) {
+  return (req, res, next, options) => {
+    logger.warn(
+      {
+        scope,
+        ip: getClientIp(req),
+        deviceFingerprint: getDeviceFingerprint(req),
+        path: req.originalUrl,
+      },
+      'Auth rate limit exceeded',
+    );
+    res.status(options.statusCode).json(options.message);
+  };
 }
 
 const shared = {
@@ -22,6 +38,7 @@ const loginRateLimit = rateLimit({
   ...shared,
   windowMs: 60 * 1000,
   max: 20,
+  handler: rateLimitHandler('login'),
   message: {
     error: 'Too Many Requests',
     message: 'Login rate limit exceeded. Slow down and try again shortly.',
@@ -32,6 +49,7 @@ const registerRateLimit = rateLimit({
   ...shared,
   windowMs: 15 * 60 * 1000,
   max: 10,
+  handler: rateLimitHandler('register'),
   message: {
     error: 'Too Many Requests',
     message: 'Too many registration attempts from this device/IP.',
@@ -42,6 +60,7 @@ const refreshRateLimit = rateLimit({
   ...shared,
   windowMs: 60 * 1000,
   max: 30,
+  handler: rateLimitHandler('refresh'),
   message: {
     error: 'Too Many Requests',
     message: 'Refresh rate limit exceeded.',

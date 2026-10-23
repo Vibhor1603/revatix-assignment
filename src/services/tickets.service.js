@@ -7,6 +7,7 @@ const { AppError } = require('../utils/AppError');
 const { getPage, getOffset, listResponse } = require('../utils/pagination');
 const { TICKET_STATUS_RANK, OPEN_TASK_STATUSES } = require('../constants/statuses');
 const { getConnectionById } = require('./connections.service');
+const { logger } = require('../utils/logger');
 
 function mapTicket(row) {
   return {
@@ -29,6 +30,10 @@ async function createTicket(actorUserId, data) {
   const connection = await getConnectionById(data.connectionId);
 
   if (connection.status === 'Terminated') {
+    logger.warn(
+      { connectionId: data.connectionId, actorUserId },
+      'Ticket create rejected: connection terminated',
+    );
     throw new AppError(
       'Cannot create a ticket for a Terminated connection',
       400,
@@ -68,6 +73,16 @@ async function createTicket(actorUserId, data) {
       entityId: id,
       newValue: data,
     },
+  );
+
+  logger.info(
+    {
+      ticketId: id,
+      connectionId: data.connectionId,
+      priority: data.priority || 'medium',
+      actorUserId,
+    },
+    'Ticket created',
   );
 
   return getTicketById(id);
@@ -174,6 +189,10 @@ async function updateTicketStatus(actorUserId, id, status) {
     );
 
     if (openTasks.length) {
+      logger.warn(
+        { ticketId: id, openTaskId: openTasks[0].id, actorUserId },
+        'Ticket close rejected: open tasks remain',
+      );
       throw new AppError(
         'Cannot close ticket while tasks are still open (not Closed or Cancelled)',
         400,
@@ -201,6 +220,16 @@ async function updateTicketStatus(actorUserId, id, status) {
       oldValue: { status: existing.status, statusRank: existing.statusRank },
       newValue: { status: updated.status, statusRank: updated.statusRank },
     },
+  );
+
+  logger.info(
+    {
+      ticketId: id,
+      from: existing.status,
+      to: status,
+      actorUserId,
+    },
+    'Ticket status updated',
   );
 
   return updated;

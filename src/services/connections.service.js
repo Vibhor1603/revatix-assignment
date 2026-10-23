@@ -9,6 +9,7 @@ const { CONNECTION_STATUS_RANK } = require('../constants/statuses');
 const { getPlanById } = require('./plans.service');
 const { getPopById } = require('./pops.service');
 const { getSectorById } = require('./sectors.service');
+const { logger } = require('../utils/logger');
 
 function mapConnection(row) {
   return {
@@ -85,6 +86,18 @@ async function createConnection(actorUserId, data) {
       entityId: id,
       newValue: data,
     },
+  );
+
+  logger.info(
+    {
+      connectionId: id,
+      planId: data.planId,
+      popId: data.popId,
+      sectorId: data.sectorId,
+      status,
+      actorUserId,
+    },
+    'Connection created',
   );
 
   return getConnectionById(id);
@@ -228,6 +241,16 @@ async function updateConnectionStatus(actorUserId, id, status) {
     },
   );
 
+  logger.info(
+    {
+      connectionId: id,
+      from: existing.status,
+      to: status,
+      actorUserId,
+    },
+    'Connection status updated',
+  );
+
   return updated;
 }
 
@@ -249,6 +272,8 @@ async function softDeleteConnection(actorUserId, id) {
       oldValue: existing,
     },
   );
+
+  logger.info({ connectionId: id, actorUserId }, 'Connection soft-deleted');
 
   return { id, deleted: true };
 }

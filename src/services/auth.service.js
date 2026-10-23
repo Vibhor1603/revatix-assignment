@@ -14,6 +14,7 @@ const {
   recordFailedLogin,
   clearLoginLock,
 } = require('./loginLock.service');
+const { logger } = require('../utils/logger');
 
 function publicUser(row) {
   return {
@@ -84,6 +85,7 @@ async function login(email, password, ipAddress, deviceFingerprint) {
   );
 
   if (!rows.length) {
+    logger.warn({ email, ipAddress, deviceFingerprint }, 'Login failed: user not found');
     await recordFailedLogin(ipAddress, deviceFingerprint, email);
     throw new AppError('Invalid email or password', 401, 'Unauthorized');
   }
@@ -92,11 +94,19 @@ async function login(email, password, ipAddress, deviceFingerprint) {
   const match = await bcrypt.compare(password, user.password_hash);
 
   if (!match) {
+    logger.warn(
+      { email, userId: user.id, ipAddress, deviceFingerprint },
+      'Login failed: bad password',
+    );
     await recordFailedLogin(ipAddress, deviceFingerprint, email);
     throw new AppError('Invalid email or password', 401, 'Unauthorized');
   }
 
   await clearLoginLock(ipAddress, deviceFingerprint);
+  logger.info(
+    { userId: user.id, email: user.email, role: user.role, ipAddress, deviceFingerprint },
+    'Login succeeded',
+  );
   return buildAuthResponse(user, deviceFingerprint);
 }
 
@@ -115,16 +125,19 @@ async function refresh(refreshToken, deviceFingerprint) {
   );
 
   if (!rows.length) {
+    logger.warn({ deviceFingerprint }, 'Refresh failed: unknown token');
     throw new AppError('Invalid refresh token', 401, 'Unauthorized');
   }
 
   const stored = rows[0];
 
   if (stored.revoked_at) {
+    logger.warn({ userId: stored.user_id }, 'Refresh failed: revoked token');
     throw new AppError('Refresh token has been revoked', 401, 'Unauthorized');
   }
 
   if (new Date(stored.expires_at) <= new Date()) {
+    logger.warn({ userId: stored.user_id }, 'Refresh failed: expired token');
     throw new AppError('Refresh token has expired', 401, 'Unauthorized');
   }
 
@@ -134,6 +147,10 @@ async function refresh(refreshToken, deviceFingerprint) {
     deviceFingerprint &&
     stored.device_fingerprint !== deviceFingerprint
   ) {
+    logger.warn(
+      { userId: stored.user_id, deviceFingerprint },
+      'Refresh failed: device mismatch',
+    );
     throw new AppError('Refresh token device mismatch', 401, 'Unauthorized');
   }
 
@@ -154,6 +171,7 @@ async function refresh(refreshToken, deviceFingerprint) {
     throw new AppError('User not found or inactive', 401, 'Unauthorized');
   }
 
+  logger.info({ userId: users[0].id }, 'Refresh token rotated');
   return buildAuthResponse(users[0], deviceFingerprint || stored.device_fingerprint);
 }
 
@@ -209,6 +227,11 @@ async function register(data) {
       data.employeeCode || null,
       data.phone || null,
     ],
+  );
+
+  logger.info(
+    { requestId: id, email: data.email, role: data.role },
+    'Registration request submitted',
   );
 
   return {
@@ -326,6 +349,11 @@ async function approveRegistration(managerId, requestId, note) {
     },
   );
 
+  logger.info(
+    { requestId, userId, email: request.email, role: request.role, managerId },
+    'Registration approved',
+  );
+
   const userRows = await query(
     `SELECT id, name, email, role, employee_code, created_at FROM users WHERE id = ?`,
     [userId],
@@ -372,6 +400,11 @@ async function rejectRegistration(managerId, requestId, note) {
       entityId: requestId,
       newValue: { email: rows[0].email, note: note || null },
     },
+  );
+
+  logger.info(
+    { requestId, email: rows[0].email, managerId },
+    'Registration rejected',
   );
 
   return mapRegistration({
