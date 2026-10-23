@@ -105,7 +105,8 @@ TASK_C=$(json_field "$LAST_BODY" id)
 expect 200 GET "/tickets/$TICKET/tasks?page=1" "" "$MGR" || true
 
 # --- Shifts + conflict ---
-DAY="2026-10-26"
+# Unique future day so re-runs do not collide with prior seed data
+DAY=$(node -e "const d=new Date(); d.setUTCDate(d.getUTCDate()+14+Math.floor(Math.random()*40)); console.log(d.toISOString().slice(0,10));")
 expect 201 POST "/technicians/$TECH_ID/shifts" "{\"shiftDate\":\"$DAY\",\"startTime\":\"09:00:00\",\"endTime\":\"17:00:00\"}" "$MGR" || exit 1
 expect 400 POST "/technicians/$TECH_ID/shifts" "{\"shiftDate\":\"$DAY\",\"startTime\":\"22:00:00\",\"endTime\":\"06:00:00\"}" "$MGR" || true
 expect 400 POST "/technicians/$TECH_ID/shifts" "{\"shiftDate\":\"$DAY\",\"startTime\":\"10:00:00\",\"endTime\":\"12:00:00\"}" "$MGR" || true
@@ -143,6 +144,5 @@ expect 200 GET "/technicians?page=1" "" "$MGR" || true
 
 echo
 echo "SUMMARY passed=$PASS failed=$FAIL"
-if [[ "$FAIL" -gt 0 ]]; then
-  exit 1
-fi
+[[ "$FAIL" -gt 0 ]] && exit 1
+exit 0

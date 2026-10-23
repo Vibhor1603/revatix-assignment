@@ -11,7 +11,8 @@ Managers and support staff can register broadband connections, log complaints as
 | Roles | `manager` · `support` · `technician` |
 | Base URL | `/api/v1` |
 | Hosted DB | Aiven MySQL (SSL) |
-| API host | Render (see Deploy) |
+| Live API | https://revatix-assignment-api.onrender.com/api/v1 |
+| Repo | https://github.com/Vibhor1603/revatix-assignment |
 
 ---
 
