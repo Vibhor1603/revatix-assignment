@@ -9,7 +9,7 @@ Express + MySQL backend for ISP ops: broadband connections, complaint tickets, f
 | Roles | `manager` · `support` · `technician` |
 | **Live API** | **https://revatix-assignment-api.onrender.com/api/v1** |
 | Repo | https://github.com/Vibhor1603/revatix-assignment |
-| DB | Aiven MySQL (`DB_SSL=true`) |
+| DB | Aiven MySQL |
 
 Send device id on auth calls when possible: `X-Device-Fingerprint: <stable-client-id>`.
 
