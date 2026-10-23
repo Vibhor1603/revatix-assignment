@@ -40,6 +40,9 @@
 9. [Auth security](#9-auth-security)
 10. [Logging](#10-logging)
 11. [Data model](#11-data-model)
+    - [Tables & columns](#tables--columns)
+    - [ER diagram](#er-diagram)
+    - [Indexes](#indexes-high-value)
 12. [Scripts & deploy](#12-scripts--deploy)
 
 ---
@@ -485,6 +488,8 @@ On Render: service → **Logs**. Locally: pretty-printed; on Render: JSON.
 
 ## 11. Data model
 
+Source of truth: [`sql/schema.sql`](sql/schema.sql). Soft delete uses `deleted_at` (NULL = active). Primary keys are `CHAR(36)` UUIDs unless noted.
+
 ### Project layout
 
 ```text
@@ -496,6 +501,233 @@ src/
 sql/schema.sql
 scripts/                   # schema apply, verify, curl sweep
 ```
+
+### Tables & columns
+
+**12 tables:** `users` · `service_plans` · `pops` · `sectors` · `connections` · `tickets` · `field_tasks` · `shifts` · `audit_logs` · `login_locks` · `refresh_tokens` · `registration_requests`
+
+---
+
+#### `users`
+
+Staff accounts (managers, support, technicians).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `name` | `VARCHAR(120)` | NOT NULL |
+| `email` | `VARCHAR(190)` | NOT NULL, UNIQUE |
+| `password_hash` | `VARCHAR(255)` | bcrypt hash |
+| `role` | `ENUM('manager','support','technician')` | NOT NULL |
+| `employee_code` | `VARCHAR(64)` | nullable |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | default now |
+| `updated_at` | `DATETIME` | on update |
+
+---
+
+#### `service_plans`
+
+Broadband plan catalog.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `name` | `VARCHAR(120)` | NOT NULL |
+| `bandwidth_mbps` | `INT` | NOT NULL |
+| `price` | `DECIMAL(10,2)` | default `0` |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `pops`
+
+Points of presence.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `code` | `VARCHAR(64)` | NOT NULL, UNIQUE |
+| `name` | `VARCHAR(120)` | NOT NULL |
+| `location` | `VARCHAR(255)` | nullable |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `sectors`
+
+Coverage sectors.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `name` | `VARCHAR(120)` | NOT NULL |
+| `geo_description` | `VARCHAR(255)` | nullable |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `connections`
+
+Subscriber broadband lines. FKs → `service_plans`, `pops`, `sectors`, `users` (`created_by`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `customer_name` | `VARCHAR(120)` | NOT NULL |
+| `phone` | `VARCHAR(40)` | NOT NULL |
+| `email` | `VARCHAR(190)` | nullable |
+| `address` | `VARCHAR(255)` | nullable |
+| `plan_id` | `CHAR(36)` | FK → `service_plans` |
+| `pop_id` | `CHAR(36)` | FK → `pops` |
+| `sector_id` | `CHAR(36)` | FK → `sectors` |
+| `static_ip` | `VARCHAR(64)` | optional |
+| `status` | `ENUM('Pending','Active','Suspended','Terminated')` | default `Pending` |
+| `status_rank` | `TINYINT` | numeric rank (1–4) |
+| `created_by` | `CHAR(36)` | FK → `users`, nullable |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `tickets`
+
+Master complaint tickets. FKs → `connections`, `users` (`created_by`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `connection_id` | `CHAR(36)` | FK → `connections` |
+| `created_by` | `CHAR(36)` | FK → `users` |
+| `title` | `VARCHAR(200)` | NOT NULL |
+| `description` | `TEXT` | nullable |
+| `complaint_type` | `VARCHAR(64)` | default `'other'` |
+| `priority` | `ENUM('low','medium','high','critical')` | default `medium` |
+| `sla_due_at` | `DATETIME` | NOT NULL |
+| `status` | `ENUM('Open','In-Progress','Field Visit','Resolved','Closed')` | default `Open` |
+| `status_rank` | `TINYINT` | numeric rank (1–5) |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `field_tasks`
+
+Dispatch units under a ticket. FKs → `tickets`, `users` (`technician_id`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `ticket_id` | `CHAR(36)` | FK → `tickets` |
+| `task_type` | `VARCHAR(120)` | NOT NULL |
+| `description` | `TEXT` | nullable |
+| `technician_id` | `CHAR(36)` | FK → `users`, nullable until assigned |
+| `scheduled_start` | `DATETIME` | set on assign |
+| `scheduled_end` | `DATETIME` | set on assign |
+| `status` | `ENUM('Open','In-Progress','Field Visit','Resolved','Closed','Cancelled')` | default `Open` |
+| `status_rank` | `TINYINT` | numeric rank (1–6) |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `shifts`
+
+Technician working windows used by assign validation. FK → `users`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `technician_id` | `CHAR(36)` | FK → `users` |
+| `shift_date` | `DATE` | NOT NULL |
+| `start_time` | `TIME` | NOT NULL |
+| `end_time` | `TIME` | NOT NULL (same day, after start) |
+| `deleted_at` | `DATETIME` | soft delete |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
+
+#### `audit_logs`
+
+Append-only change history (no soft delete). FK → `users` (`actor_user_id`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `actor_user_id` | `CHAR(36)` | FK → `users`, nullable |
+| `action` | `VARCHAR(80)` | e.g. `task_assigned`, `status_change` |
+| `entity_type` | `VARCHAR(64)` | e.g. `connection`, `ticket`, `field_task` |
+| `entity_id` | `CHAR(36)` | target row id |
+| `old_value` | `JSON` | previous snapshot |
+| `new_value` | `JSON` | new snapshot |
+| `created_at` | `DATETIME` | default now |
+
+---
+
+#### `login_locks`
+
+Progressive lockout keyed by IP + device fingerprint.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `ip_address` | `VARCHAR(64)` | NOT NULL |
+| `device_fingerprint` | `VARCHAR(128)` | NOT NULL |
+| `email` | `VARCHAR(190)` | last attempted email |
+| `fail_count` | `INT` | default `0` |
+| `locked_until` | `DATETIME` | NULL when unlocked |
+| `updated_at` | `DATETIME` | |
+
+Unique: `(ip_address, device_fingerprint)`.
+
+---
+
+#### `refresh_tokens`
+
+Opaque refresh tokens — **hash only** stored. FK → `users`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `user_id` | `CHAR(36)` | FK → `users` |
+| `token_hash` | `CHAR(64)` | SHA-256 hex, UNIQUE |
+| `device_fingerprint` | `VARCHAR(128)` | soft bind |
+| `expires_at` | `DATETIME` | NOT NULL |
+| `revoked_at` | `DATETIME` | set on logout / rotate |
+| `created_at` | `DATETIME` | |
+
+---
+
+#### `registration_requests`
+
+Public signup queue awaiting manager review. FK → `users` (`reviewed_by`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | `CHAR(36)` | PK |
+| `name` | `VARCHAR(120)` | NOT NULL |
+| `email` | `VARCHAR(190)` | NOT NULL |
+| `password_hash` | `VARCHAR(255)` | stored until approve |
+| `role` | `ENUM('manager','technician')` | NOT NULL |
+| `employee_code` | `VARCHAR(64)` | nullable |
+| `phone` | `VARCHAR(40)` | nullable |
+| `status` | `ENUM('pending','approved','rejected')` | default `pending` |
+| `reviewed_by` | `CHAR(36)` | FK → `users` |
+| `review_note` | `VARCHAR(255)` | nullable |
+| `created_at` | `DATETIME` | |
+| `updated_at` | `DATETIME` | |
+
+---
 
 ### ER diagram
 
@@ -531,7 +763,7 @@ erDiagram
   }
 ```
 
-Technicians are `users` (`role = technician`). Soft delete via `deleted_at`. Full DDL: [`sql/schema.sql`](sql/schema.sql).
+Technicians are `users` with `role = technician`.
 
 ### Indexes (high-value)
 
