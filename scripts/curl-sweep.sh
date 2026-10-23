@@ -48,14 +48,18 @@ expect 401 POST /auth/login '{"email":"manager@isp.local","password":"wrong-pass
 expect 400 POST /auth/login '{"email":"bad","password":"x"}' || true
 
 expect 200 POST /auth/login '{"email":"manager@isp.local","password":"Password123!"}' || exit 1
-MGR=$(json_field "$LAST_BODY" token)
+MGR=$(json_field "$LAST_BODY" accessToken)
+MGR_REFRESH=$(json_field "$LAST_BODY" refreshToken)
 
 expect 200 POST /auth/login '{"email":"support@isp.local","password":"Password123!"}' || exit 1
-SUP=$(json_field "$LAST_BODY" token)
+SUP=$(json_field "$LAST_BODY" accessToken)
 
 expect 200 POST /auth/login '{"email":"tech@isp.local","password":"Password123!"}' || exit 1
-TECH=$(json_field "$LAST_BODY" token)
+TECH=$(json_field "$LAST_BODY" accessToken)
 TECH_ID=$(json_field "$LAST_BODY" user.id)
+
+expect 200 POST /auth/refresh "{\"refreshToken\":\"$MGR_REFRESH\"}" || true
+MGR=$(json_field "$LAST_BODY" accessToken)
 
 expect 200 GET /auth/me "" "$MGR" || true
 expect 401 GET /auth/me || true

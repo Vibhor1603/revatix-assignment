@@ -21,9 +21,14 @@ async function resolveHost(hostname) {
   return hostname;
 }
 
+async function runFile(connection, relativePath) {
+  const fullPath = path.join(__dirname, '..', relativePath);
+  const sql = fs.readFileSync(fullPath, 'utf8');
+  await connection.query(sql);
+  console.log(`Applied ${relativePath}`);
+}
+
 async function main() {
-  const schemaPath = path.join(__dirname, '..', 'sql', 'schema.sql');
-  const sql = fs.readFileSync(schemaPath, 'utf8');
   const host = await resolveHost(env.db.host);
 
   const config = {
@@ -43,8 +48,9 @@ async function main() {
   const connection = await mysql.createConnection(config);
 
   try {
-    await connection.query(sql);
-    console.log(`Schema applied to ${env.db.host}/${env.db.database}`);
+    await runFile(connection, 'sql/schema.sql');
+    await runFile(connection, 'sql/migration_auth_security.sql');
+    console.log(`Schema ready on ${env.db.host}/${env.db.database}`);
   } finally {
     await connection.end();
   }

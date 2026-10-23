@@ -85,7 +85,7 @@ async function run() {
       body: { email: 'manager@isp.local', password: 'Password123!' },
       expectStatus: 200,
     });
-    managerToken = login.data.token;
+    managerToken = login.data.accessToken;
     ok('manager login');
   } catch (error) {
     fail('manager login', error);
@@ -98,7 +98,7 @@ async function run() {
       body: { email: 'support@isp.local', password: 'Password123!' },
       expectStatus: 200,
     });
-    supportToken = login.data.token;
+    supportToken = login.data.accessToken;
     ok('support login');
   } catch (error) {
     fail('support login', error);
@@ -109,11 +109,28 @@ async function run() {
       body: { email: 'tech@isp.local', password: 'Password123!' },
       expectStatus: 200,
     });
-    techToken = login.data.token;
+    techToken = login.data.accessToken;
     techId = login.data.user.id;
     ok('technician login');
   } catch (error) {
     fail('technician login', error);
+  }
+
+  try {
+    const first = await request('POST', '/auth/login', {
+      body: { email: 'manager@isp.local', password: 'Password123!' },
+      expectStatus: 200,
+    });
+    const refreshed = await request('POST', '/auth/refresh', {
+      body: { refreshToken: first.data.refreshToken },
+      expectStatus: 200,
+    });
+    if (!refreshed.data.accessToken) {
+      throw new Error('missing accessToken after refresh');
+    }
+    ok('refresh token rotation');
+  } catch (error) {
+    fail('refresh token rotation', error);
   }
 
   try {
@@ -266,11 +283,15 @@ async function run() {
     fail('create two tasks under ticket', error);
   }
 
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + 20 + Math.floor(Math.random() * 50));
+  const shiftDate = day.toISOString().slice(0, 10);
+
   try {
     await request('POST', `/technicians/${techId}/shifts`, {
       token: managerToken,
       body: {
-        shiftDate: '2026-10-24',
+        shiftDate,
         startTime: '09:00:00',
         endTime: '17:00:00',
       },
@@ -285,7 +306,7 @@ async function run() {
     await request('POST', `/technicians/${techId}/shifts`, {
       token: managerToken,
       body: {
-        shiftDate: '2026-10-24',
+        shiftDate,
         startTime: '22:00:00',
         endTime: '06:00:00',
       },
@@ -301,8 +322,8 @@ async function run() {
       token: supportToken,
       body: {
         technicianId: techId,
-        scheduledStart: '2026-10-24 10:00:00',
-        scheduledEnd: '2026-10-24 12:00:00',
+        scheduledStart: `${shiftDate} 10:00:00`,
+        scheduledEnd: `${shiftDate} 12:00:00`,
       },
       expectStatus: 200,
     });
@@ -316,8 +337,8 @@ async function run() {
       token: supportToken,
       body: {
         technicianId: techId,
-        scheduledStart: '2026-10-24 11:00:00',
-        scheduledEnd: '2026-10-24 13:00:00',
+        scheduledStart: `${shiftDate} 11:00:00`,
+        scheduledEnd: `${shiftDate} 13:00:00`,
       },
       expectStatus: 400,
     });
@@ -331,8 +352,8 @@ async function run() {
       token: supportToken,
       body: {
         technicianId: techId,
-        scheduledStart: '2026-10-24 18:00:00',
-        scheduledEnd: '2026-10-24 19:00:00',
+        scheduledStart: `${shiftDate} 18:00:00`,
+        scheduledEnd: `${shiftDate} 19:00:00`,
       },
       expectStatus: 400,
     });
@@ -346,8 +367,8 @@ async function run() {
       token: supportToken,
       body: {
         technicianId: techId,
-        scheduledStart: '2026-10-24 13:00:00',
-        scheduledEnd: '2026-10-24 15:00:00',
+        scheduledStart: `${shiftDate} 13:00:00`,
+        scheduledEnd: `${shiftDate} 15:00:00`,
       },
       expectStatus: 200,
     });

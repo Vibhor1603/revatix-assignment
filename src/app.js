@@ -11,8 +11,11 @@ const { env } = require('./config/env');
 
 const app = express();
 
+// Needed so IP-based limits work behind Render / proxies.
+app.set('trust proxy', 1);
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 

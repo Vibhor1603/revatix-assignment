@@ -21,6 +21,11 @@ async function auth(req, res, next) {
     return next(new AppError('Invalid or expired token', 401, 'Unauthorized'));
   }
 
+  // Refresh tokens are opaque DB tokens, not JWTs — reject non-access JWTs.
+  if (payload.typ && payload.typ !== 'access') {
+    return next(new AppError('Access token required', 401, 'Unauthorized'));
+  }
+
   const rows = await query(
     `SELECT id, name, email, role, employee_code, created_at
      FROM users

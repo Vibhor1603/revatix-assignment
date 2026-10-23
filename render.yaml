@@ -10,8 +10,10 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: JWT_EXPIRES_IN
-        value: 8h
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_DAYS
+        value: "7"
       - key: DB_SSL
         value: "true"
       - key: DB_HOST

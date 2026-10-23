@@ -17,7 +17,12 @@ const env = {
     sslCaPath: process.env.DB_SSL_CA || '',
   },
   jwtSecret: process.env.JWT_SECRET || 'dev-only-change-me-in-production',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  // Short-lived access JWT (refresh issues a new one).
+  accessTokenExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || '15m',
+  // Refresh token lifetime in days.
+  refreshTokenDays: Number(process.env.JWT_REFRESH_DAYS) || 7,
 };
+
+env.refreshTokenTtlMs = env.refreshTokenDays * 24 * 60 * 60 * 1000;
 
 module.exports = { env };
