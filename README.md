@@ -129,22 +129,14 @@ Seeded by `npm run seed` · password for all: **`Password123!`**
 | IDs | UUID strings |
 | Soft delete | Resources use `deleted_at` (no hard deletes in domain tables) |
 
-**Access legend used below**
-
-| Label | Meaning |
-|-------|---------|
-| public | No JWT |
-| JWT | Any authenticated role |
-| M | manager |
-| S | support |
-| T | technician |
+**Access column** in the API tables below uses full role names: `public` (no JWT), `JWT` (any authenticated role), or one or more of `manager` · `support` · `technician`.
 
 ---
 
 ## 6. Roles & permissions
 
-| Capability | M | S | T |
-|------------|:-:|:-:|:-:|
+| Capability | manager | support | technician |
+|------------|:-------:|:-------:|:----------:|
 | Catalog write (plans / POPs / sectors) | yes | — | — |
 | Catalog / connections read | yes | yes | — |
 | Connections write / soft-delete | yes | — | — |
@@ -185,9 +177,9 @@ All paths are relative to **`/api/v1`**.
 | `POST` | `/auth/logout` | public | Revoke refresh token |
 | `POST` | `/auth/register` | public | Submit pending signup (`manager` \| `technician`) |
 | `GET` | `/auth/me` | JWT | Current user profile |
-| `GET` | `/auth/registration-requests` | M | List requests (`?status=&page=`) |
-| `POST` | `/auth/registration-requests/:id/approve` | M | Approve → create user |
-| `POST` | `/auth/registration-requests/:id/reject` | M | Reject request |
+| `GET` | `/auth/registration-requests` | manager | List requests (`?status=&page=`) |
+| `POST` | `/auth/registration-requests/:id/approve` | manager | Approve → create user |
+| `POST` | `/auth/registration-requests/:id/reject` | manager | Reject request |
 
 <details>
 <summary><strong>Bodies & examples</strong></summary>
@@ -220,11 +212,11 @@ Service-plan catalog. Manager writes; manager + support read.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `POST` | `/plans` | M | Create plan |
-| `GET` | `/plans` | M S | List (`?page=`) |
-| `GET` | `/plans/:id` | M S | Get one |
-| `PATCH` | `/plans/:id` | M | Update fields |
-| `DELETE` | `/plans/:id` | M | Soft-delete |
+| `POST` | `/plans` | manager | Create plan |
+| `GET` | `/plans` | manager, support | List (`?page=`) |
+| `GET` | `/plans/:id` | manager, support | Get one |
+| `PATCH` | `/plans/:id` | manager | Update fields |
+| `DELETE` | `/plans/:id` | manager | Soft-delete |
 
 **Create body**
 
@@ -246,11 +238,11 @@ Point-of-presence catalog.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `POST` | `/pops` | M | Create POP |
-| `GET` | `/pops` | M S | List (`?page=`) |
-| `GET` | `/pops/:id` | M S | Get one |
-| `PATCH` | `/pops/:id` | M | Update |
-| `DELETE` | `/pops/:id` | M | Soft-delete |
+| `POST` | `/pops` | manager | Create POP |
+| `GET` | `/pops` | manager, support | List (`?page=`) |
+| `GET` | `/pops/:id` | manager, support | Get one |
+| `PATCH` | `/pops/:id` | manager | Update |
+| `DELETE` | `/pops/:id` | manager | Soft-delete |
 
 **Create body**
 
@@ -272,11 +264,11 @@ Coverage-sector catalog.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `POST` | `/sectors` | M | Create sector |
-| `GET` | `/sectors` | M S | List (`?page=`) |
-| `GET` | `/sectors/:id` | M S | Get one |
-| `PATCH` | `/sectors/:id` | M | Update |
-| `DELETE` | `/sectors/:id` | M | Soft-delete |
+| `POST` | `/sectors` | manager | Create sector |
+| `GET` | `/sectors` | manager, support | List (`?page=`) |
+| `GET` | `/sectors/:id` | manager, support | Get one |
+| `PATCH` | `/sectors/:id` | manager | Update |
+| `DELETE` | `/sectors/:id` | manager | Soft-delete |
 
 **Create body**
 
@@ -297,12 +289,12 @@ Subscriber broadband lines. Linked to plan + POP + sector.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `POST` | `/connections` | M | Create connection |
-| `GET` | `/connections` | M S | List with filters |
-| `GET` | `/connections/:id` | M S | Get one |
-| `PATCH` | `/connections/:id` | M | Update fields |
-| `PATCH` | `/connections/:id/status` | M | Change status only |
-| `DELETE` | `/connections/:id` | M | Soft-delete |
+| `POST` | `/connections` | manager | Create connection |
+| `GET` | `/connections` | manager, support | List with filters |
+| `GET` | `/connections/:id` | manager, support | Get one |
+| `PATCH` | `/connections/:id` | manager | Update fields |
+| `PATCH` | `/connections/:id/status` | manager | Change status only |
+| `DELETE` | `/connections/:id` | manager | Soft-delete |
 
 **List query:** `?page=&status=&planId=&popId=&sectorId=`  
 `status` ∈ `Pending` · `Active` · `Suspended` · `Terminated`
@@ -334,13 +326,13 @@ Master complaint tickets against a connection. Cannot create on a **Terminated**
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `POST` | `/tickets` | M S | Create ticket |
-| `GET` | `/tickets` | M S T | List with filters |
-| `GET` | `/tickets/:id` | M S T | Get one |
-| `PATCH` | `/tickets/:id` | M S | Update fields |
-| `PATCH` | `/tickets/:id/status` | M S | Change status |
-| `POST` | `/tickets/:ticketId/tasks` | M S | Create field task under ticket |
-| `GET` | `/tickets/:ticketId/tasks` | M S T | List tasks for ticket |
+| `POST` | `/tickets` | manager, support | Create ticket |
+| `GET` | `/tickets` | manager, support, technician | List with filters |
+| `GET` | `/tickets/:id` | manager, support, technician | Get one |
+| `PATCH` | `/tickets/:id` | manager, support | Update fields |
+| `PATCH` | `/tickets/:id/status` | manager, support | Change status |
+| `POST` | `/tickets/:ticketId/tasks` | manager, support | Create field task under ticket |
+| `GET` | `/tickets/:ticketId/tasks` | manager, support, technician | List tasks for ticket |
 
 **List query:** `?page=&status=&connectionId=&priority=`  
 `priority` ∈ `low` · `medium` · `high` · `critical`
@@ -378,12 +370,12 @@ Standalone task operations (assign / unassign / cancel / status). Create & list-
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `GET` | `/tasks/:id` | M S T | Get one task |
-| `PATCH` | `/tasks/:id` | M S | Update `taskType` / `description` |
-| `PATCH` | `/tasks/:id/status` | M S T | Change status (tech: assigned only) |
-| `POST` | `/tasks/:id/assign` | M S | Assign technician + schedule |
-| `POST` | `/tasks/:id/unassign` | M S | Clear technician + schedule |
-| `POST` | `/tasks/:id/cancel` | M S | Mark Cancelled |
+| `GET` | `/tasks/:id` | manager, support, technician | Get one task |
+| `PATCH` | `/tasks/:id` | manager, support | Update `taskType` / `description` |
+| `PATCH` | `/tasks/:id/status` | manager, support, technician | Change status (tech: assigned only) |
+| `POST` | `/tasks/:id/assign` | manager, support | Assign technician + schedule |
+| `POST` | `/tasks/:id/unassign` | manager, support | Clear technician + schedule |
+| `POST` | `/tasks/:id/cancel` | manager, support | Mark Cancelled |
 
 **Assign body**
 
@@ -411,11 +403,11 @@ Technicians are `users` with `role = technician`. Shifts gate task assignment.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `GET` | `/technicians` | M S | List technicians (`?page=`) |
-| `POST` | `/technicians` | M | Create technician user |
-| `POST` | `/technicians/:id/shifts` | M | Add shift |
-| `GET` | `/technicians/:id/shifts` | M S T | List shifts (`?page=`) |
-| `DELETE` | `/technicians/:id/shifts/:shiftId` | M | Soft-delete shift |
+| `GET` | `/technicians` | manager, support | List technicians (`?page=`) |
+| `POST` | `/technicians` | manager | Create technician user |
+| `POST` | `/technicians/:id/shifts` | manager | Add shift |
+| `GET` | `/technicians/:id/shifts` | manager, support, technician | List shifts (`?page=`) |
+| `DELETE` | `/technicians/:id/shifts/:shiftId` | manager | Soft-delete shift |
 
 **Create technician**
 
@@ -448,7 +440,7 @@ Append-only history of important writes.
 
 | Method | Path | Access | Purpose |
 |--------|------|--------|---------|
-| `GET` | `/audit` | M S | List audit rows with filters |
+| `GET` | `/audit` | manager, support | List audit rows with filters |
 
 **Query:** `?page=&entityType=&entityId=&action=&actorUserId=`
 
